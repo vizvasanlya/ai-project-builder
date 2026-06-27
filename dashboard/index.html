@@ -112,7 +112,10 @@
         <div class="section-card">
           <div class="section-header">
             <div class="section-title">All Projects</div>
-            <button id="btn-new-project" class="btn btn-primary btn-sm">+ New Project</button>
+            <div style="display: flex; gap: 8px;">
+              <button id="btn-new-project" class="btn btn-primary btn-sm">+ New Project</button>
+              <button class="btn btn-danger btn-sm" onclick="cleanupStuckProjects()">Cleanup Stuck</button>
+            </div>
           </div>
           <div class="section-body">
             <div id="projects-list" class="project-list"></div>

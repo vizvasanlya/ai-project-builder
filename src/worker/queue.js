@@ -71,10 +71,11 @@ async function buildProject(env, projectId) {
   await addHistory(env.DB, projectId, 'test', 'started');
   
   const testResults = await testProject(env, code, config);
-  
+
   if (!testResults.success) {
-    await addHistory(env.DB, projectId, 'test', 'failed', testResults.error);
-    throw new Error(`Tests failed: ${testResults.error}`);
+    var testError = testResults.error || testResults.errors?.join('; ') || 'Unknown test failure';
+    await addHistory(env.DB, projectId, 'test', 'failed', testError);
+    throw new Error('Tests failed: ' + testError);
   }
   
   await addHistory(env.DB, projectId, 'test', 'completed', 'All tests passed');

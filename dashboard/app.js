@@ -454,6 +454,9 @@ async function showProjectDetails(id) {
     }
 
     html += '<div style="margin-top: 16px; display: flex; gap: 12px;">';
+    if (project.status === 'failed') {
+      html += '<button class="btn btn-primary btn-sm" onclick="retryProject(\'' + project.id + '\')">Retry</button>';
+    }
     html += '<button class="btn btn-danger btn-sm" onclick="deleteProject(\'' + project.id + '\')">Delete</button>';
     html += '<button class="btn btn-secondary btn-sm" onclick="closeModal()">Close</button>';
     html += '</div>';
@@ -499,6 +502,31 @@ async function deleteProject(id) {
     loadOverview();
   } catch (error) {
     alert('Failed to delete project');
+  }
+}
+
+async function retryProject(id) {
+  try {
+    await fetchAPI('/api/projects/retry', { method: 'POST', body: { projectId: id } });
+    closeModal();
+    loadProjects();
+    loadOverview();
+    alert('Project queued for retry');
+  } catch (error) {
+    alert('Failed to retry project');
+  }
+}
+
+async function cleanupStuckProjects() {
+  if (!confirm('Mark all stuck projects (>2 hours) as failed?')) return;
+
+  try {
+    var result = await fetchAPI('/api/projects/cleanup', { method: 'POST' });
+    alert('Cleaned up ' + result.cleaned + ' stuck projects');
+    loadProjects();
+    loadOverview();
+  } catch (error) {
+    alert('Failed to cleanup');
   }
 }
 

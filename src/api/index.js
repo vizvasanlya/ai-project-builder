@@ -48,20 +48,11 @@ export async function handleApi(request, env, ctx) {
     if (path === '/api/trigger') {
       return handleTrigger(request, env);
     }
-    if (path === '/api/debug/env') {
-      return Response.json({
-        hasApiKey: !!env.OPENCODE_ZEN_API_KEY,
-        keyLength: env.OPENCODE_ZEN_API_KEY ? env.OPENCODE_ZEN_API_KEY.length : 0,
-        keyPrefix: env.OPENCODE_ZEN_API_KEY ? env.OPENCODE_ZEN_API_KEY.substring(0, 8) + '...' : 'none'
-      }, { headers: corsHeaders });
+    if (path === '/api/projects/retry' && request.method === 'POST') {
+      return handleRetryProject(request, env);
     }
-    if (path === '/api/debug/test-direct') {
-      try {
-        var resp = await fetch('https://httpbin.org/get');
-        return Response.json({ status: resp.status }, { headers: corsHeaders });
-      } catch(e) {
-        return Response.json({ error: e.message }, { headers: corsHeaders });
-      }
+    if (path === '/api/projects/cleanup' && request.method === 'POST') {
+      return handleCleanupProjects(env);
     }
 
     return new Response('Not Found', { status: 404, headers: corsHeaders });
@@ -208,4 +199,45 @@ async function handleTrigger(request, env) {
     projectId: id,
     project: topic
   }, { headers: corsHeaders });
+}
+
+async function handleRetryProject(request, env) {
+  if (request.method !== 'POST') {
+    return new Response('Method not allowed', { status: 405, headers: corsHeaders });
+  }
+
+  var body = await request.json();
+  var projectId = body.projectId;
+
+  if (!projectId) {
+    return Response.json({ error: 'projectId required' }, { status: 400, headers: corsHeaders });
+  }
+
+  var project = await env.DB.prepare('SELECT * FROM projects WHERE id = ?').bind(projectId).first();
+  if (!project) {
+    return Response.json({ error: 'Project not found' }, { status: 404, headers: corsHeaders });
+  }
+
+  await env.DB.prepare(`
+    UPDATE projects SET status = 'pending', error_message = NULL, retry_count = retry_count + 1, updated_at = CURRENT_TIMESTAMP WHERE id = ?
+  `).bind(projectId).run();
+
+  await env.DB.prepare(`
+    INSERT INTO build_history (project_id, action, status, details)
+    VALUES (?, 'retry', 'success', 'Manually retried')
+  `).bind(projectId).run();
+
+  await env.QUEUE.send({ type: 'build', projectId: projectId });
+
+  return Response.json({ success: true, projectId: projectId }, { headers: corsHeaders });
+}
+
+async function handleCleanupProjects(env) {
+  var stuck = await env.DB.prepare(`
+    UPDATE projects SET status = 'failed', error_message = 'Stuck - cleaned up', updated_at = CURRENT_TIMESTAMP
+    WHERE status IN ('pending', 'researching', 'generating', 'testing')
+    AND updated_at < datetime('now', '-2 hours')
+  `).run();
+
+  return Response.json({ cleaned: stuck.meta?.changes || 0 }, { headers: corsHeaders });
 }
