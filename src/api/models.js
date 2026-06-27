@@ -83,23 +83,41 @@ export async function testModel(env, modelId) {
       },
       body: JSON.stringify({
         model: modelId,
-        messages: [{ role: 'user', content: 'Say "test successful"' }],
-        max_tokens: 10
+        messages: [{ role: 'user', content: 'Say hello in one word' }],
+        max_tokens: 50
       })
     });
 
+    var responseText = await response.text();
+    
     if (!response.ok) {
-      var errorText = await response.text();
       try {
-        var errorJson = JSON.parse(errorText);
-        return { success: false, error: errorJson.error?.message || errorText };
+        var errorJson = JSON.parse(responseText);
+        return { success: false, error: errorJson.error?.message || responseText };
       } catch (e) {
-        return { success: false, error: errorText };
+        return { success: false, error: 'HTTP ' + response.status + ': ' + responseText.substring(0, 200) };
       }
     }
 
-    var data = await response.json();
-    return { success: true, response: data.choices[0].message.content };
+    var data = JSON.parse(responseText);
+    var content = '';
+    
+    if (data.choices && data.choices[0]) {
+      content = data.choices[0].message?.content || '';
+      if (!content && data.choices[0].message?.reasoning_content) {
+        content = '(reasoning only, no content)';
+      }
+    }
+    
+    var cost = data.cost || 'unknown';
+    
+    return { 
+      success: true, 
+      response: content || '(empty response)',
+      model: data.model,
+      cost: cost,
+      tokens: data.usage?.total_tokens || 0
+    };
   } catch (error) {
     return { success: false, error: error.message };
   }

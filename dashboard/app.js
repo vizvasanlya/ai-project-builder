@@ -179,6 +179,7 @@ async function loadConfig() {
     const config = await fetchAPI('/api/config');
 
     document.getElementById('github-username').value = config.githubUsername || '';
+    document.getElementById('selected-model').value = config.selectedModel || 'big-pickle';
     document.getElementById('schedule-enabled').checked = config.scheduleEnabled;
     document.getElementById('max-projects').value = config.maxProjectsPerDay;
     document.getElementById('require-tests').checked = config.requireTests;
@@ -193,6 +194,7 @@ async function saveConfig(e) {
 
   const config = {
     githubUsername: document.getElementById('github-username').value,
+    selectedModel: document.getElementById('selected-model').value,
     scheduleEnabled: document.getElementById('schedule-enabled').checked,
     maxProjectsPerDay: parseInt(document.getElementById('max-projects').value),
     requireTests: document.getElementById('require-tests').checked,
@@ -262,9 +264,13 @@ async function testModel(modelId) {
     });
 
     if (result.success) {
-      alert('Model test successful: ' + result.response);
+      var info = 'Response: ' + result.response;
+      if (result.model) info += '\nModel: ' + result.model;
+      if (result.cost !== undefined) info += '\nCost: $' + result.cost;
+      if (result.tokens) info += '\nTokens: ' + result.tokens;
+      alert(info);
     } else {
-      alert('Model test failed: ' + result.error);
+      alert('Test failed: ' + result.error);
     }
   } catch (error) {
     alert('Failed to test model');
