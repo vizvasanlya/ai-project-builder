@@ -1,0 +1,41 @@
+name = "ai-project-builder"
+main = "src/index.js"
+compatibility_date = "2024-01-01"
+
+# D1 Database for project tracking
+[[d1_databases]]
+binding = "DB"
+database_name = "ai-project-builder-db"
+database_id = "dc3b2fe5-b24c-4950-9e5a-ae6c782254d9"
+
+# KV Store for config and state
+[[kv_namespaces]]
+binding = "KV"
+id = "0c253579774647f7aa5f4604966e21c6"
+
+# Queue Producer
+[[queues.producers]]
+queue = "project-build-queue"
+binding = "QUEUE"
+
+# Queue Consumer
+[[queues.consumers]]
+queue = "project-build-queue"
+max_batch_size = 5
+max_batch_timeout = 30
+max_retries = 3
+dead_letter_queue = "project-build-queue-dlq"
+
+# Static assets for dashboard
+[assets]
+directory = "./dashboard"
+binding = "ASSETS"
+not_found_handling = "single-page-application"
+run_worker_first = ["/api/*"]
+
+[vars]
+GITHUB_USERNAME = "your-github-username"
+
+# Cron: Runs every hour to check for work
+[triggers]
+crons = ["0 * * * *"]
