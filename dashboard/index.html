@@ -3,130 +3,213 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>AI Project Builder - Dashboard</title>
+  <title>AI Project Builder</title>
   <link rel="stylesheet" href="styles.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 </head>
 <body>
   <div class="container">
     <header>
-      <h1>AI Project Builder</h1>
-      <p>Automated project generation and deployment</p>
+      <div class="header-left">
+        <div class="logo">AI</div>
+        <div>
+          <h1>AI Project Builder</h1>
+          <p>Automated project lifecycle manager</p>
+        </div>
+      </div>
+      <div class="header-actions">
+        <button id="btn-trigger-build" class="btn btn-primary">
+          <span>+</span> Trigger Build
+        </button>
+      </div>
     </header>
 
-    <nav class="tabs">
-      <button class="tab active" data-tab="overview">Overview</button>
-      <button class="tab" data-tab="projects">Projects</button>
-      <button class="tab" data-tab="config">Configuration</button>
-      <button class="tab" data-tab="models">Models</button>
+    <nav class="nav-tabs">
+      <button class="nav-tab active" data-tab="overview">Overview</button>
+      <button class="nav-tab" data-tab="projects">Projects</button>
+      <button class="nav-tab" data-tab="config">Configuration</button>
+      <button class="nav-tab" data-tab="models">Models</button>
     </nav>
 
     <main id="content">
+      <!-- Overview Tab -->
       <div id="overview" class="tab-content active">
         <div class="stats-grid">
-          <div class="stat-card">
-            <h3>Total Projects</h3>
-            <p id="stat-total">0</p>
+          <div class="stat-card accent">
+            <div class="stat-icon">+</div>
+            <div class="stat-label">Total Projects</div>
+            <div class="stat-value" id="stat-total">0</div>
           </div>
           <div class="stat-card success">
-            <h3>Completed</h3>
-            <p id="stat-completed">0</p>
+            <div class="stat-icon">✓</div>
+            <div class="stat-label">Completed</div>
+            <div class="stat-value" id="stat-completed">0</div>
           </div>
           <div class="stat-card warning">
-            <h3>In Progress</h3>
-            <p id="stat-pending">0</p>
+            <div class="stat-icon">...</div>
+            <div class="stat-label">In Progress</div>
+            <div class="stat-value" id="stat-pending">0</div>
           </div>
           <div class="stat-card error">
-            <h3>Failed</h3>
-            <p id="stat-failed">0</p>
+            <div class="stat-icon">!</div>
+            <div class="stat-label">Failed</div>
+            <div class="stat-value" id="stat-failed">0</div>
           </div>
         </div>
 
-        <div class="section">
-          <h2>Recent Projects</h2>
-          <div id="recent-projects" class="project-list"></div>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px;">
+          <div class="section-card">
+            <div class="section-header">
+              <div class="section-title">
+                <span class="icon">*</span> Recent Projects
+              </div>
+            </div>
+            <div class="section-body">
+              <div id="recent-projects" class="project-list"></div>
+            </div>
+          </div>
+
+          <div class="section-card">
+            <div class="section-header">
+              <div class="section-title">
+                <span class="icon">~</span> Live Activity
+              </div>
+            </div>
+            <div class="section-body">
+              <div id="activity-feed"></div>
+            </div>
+          </div>
         </div>
 
-        <div class="section">
-          <h2>Live Activity</h2>
-          <div id="activity-feed" class="project-list"></div>
-        </div>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px;">
+          <div class="section-card">
+            <div class="section-header">
+              <div class="section-title">
+                <span class="icon">^</span> API Usage (7 Days)
+              </div>
+            </div>
+            <div class="section-body">
+              <div id="api-usage"></div>
+            </div>
+          </div>
 
-        <div class="section">
-          <h2>API Usage (Last 7 Days)</h2>
-          <div id="api-usage" class="usage-chart"></div>
-        </div>
-
-        <div class="section">
-          <h2>Common Errors</h2>
-          <div id="error-list" class="error-list"></div>
+          <div class="section-card">
+            <div class="section-header">
+              <div class="section-title">
+                <span class="icon">!</span> Common Errors
+              </div>
+            </div>
+            <div class="section-body">
+              <div id="error-list"></div>
+            </div>
+          </div>
         </div>
       </div>
 
+      <!-- Projects Tab -->
       <div id="projects" class="tab-content">
-        <div class="actions">
-          <button id="btn-new-project" class="btn btn-primary">New Project</button>
-          <button id="btn-trigger-build" class="btn btn-secondary">Trigger Build</button>
+        <div class="section-card">
+          <div class="section-header">
+            <div class="section-title">All Projects</div>
+            <button id="btn-new-project" class="btn btn-primary btn-sm">+ New Project</button>
+          </div>
+          <div class="section-body">
+            <div id="projects-list" class="project-list"></div>
+          </div>
         </div>
-        <div id="projects-list" class="project-list"></div>
       </div>
 
+      <!-- Configuration Tab -->
       <div id="config" class="tab-content">
-        <form id="config-form">
-          <div class="form-group">
-            <label for="github-username">GitHub Username</label>
-            <input type="text" id="github-username" name="githubUsername">
+        <div class="section-card">
+          <div class="section-header">
+            <div class="section-title">Settings</div>
           </div>
+          <div class="section-body">
+            <form id="config-form">
+              <div class="form-grid">
+                <div class="form-group">
+                  <label class="form-label" for="github-username">GitHub Username</label>
+                  <input type="text" id="github-username" class="form-input" placeholder="your-username">
+                </div>
 
-          <div class="form-group">
-            <label for="selected-model">AI Model for Code Generation</label>
-            <select id="selected-model" name="selectedModel">
-              <option value="big-pickle">Big Pickle (Free)</option>
-              <option value="deepseek-v4-flash-free">DeepSeek V4 Flash Free</option>
-              <option value="mimo-v2.5-free">MiMo-V2.5 Free</option>
-              <option value="north-mini-code-free">North Mini Code Free</option>
-              <option value="nemotron-3-ultra-free">Nemotron 3 Ultra Free</option>
-            </select>
-            <small style="color: var(--text-secondary);">Model used to generate project code</small>
-          </div>
+                <div class="form-group">
+                  <label class="form-label" for="selected-model">AI Model</label>
+                  <select id="selected-model" class="form-select">
+                    <option value="big-pickle">Big Pickle (Free)</option>
+                    <option value="deepseek-v4-flash-free">DeepSeek V4 Flash Free</option>
+                    <option value="mimo-v2.5-free">MiMo-V2.5 Free</option>
+                    <option value="north-mini-code-free">North Mini Code Free</option>
+                    <option value="nemotron-3-ultra-free">Nemotron 3 Ultra Free</option>
+                  </select>
+                  <span class="form-hint">Model used for code generation</span>
+                </div>
 
-          <div class="form-group">
-            <label for="schedule-enabled">Enable Schedule</label>
-            <input type="checkbox" id="schedule-enabled" name="scheduleEnabled">
-          </div>
+                <div class="form-group">
+                  <label class="form-label" for="max-projects">Max Projects Per Day</label>
+                  <input type="number" id="max-projects" class="form-input" min="1" max="10" value="3">
+                </div>
 
-          <div class="form-group">
-            <label for="max-projects">Max Projects Per Day</label>
-            <input type="number" id="max-projects" name="maxProjectsPerDay" min="1" max="10">
-          </div>
+                <div class="form-group">
+                  <label class="form-label">Schedule</label>
+                  <label class="form-checkbox-group">
+                    <input type="checkbox" id="schedule-enabled" class="form-checkbox" checked>
+                    <span>Enable automatic builds</span>
+                  </label>
+                </div>
 
-          <div class="form-group">
-            <label for="require-tests">Require Tests</label>
-            <input type="checkbox" id="require-tests" name="requireTests">
-          </div>
-          
-          <div class="form-group">
-            <label for="auto-merge">Auto Merge to Main</label>
-            <input type="checkbox" id="auto-merge" name="autoMergeToMain">
-          </div>
+                <div class="form-group">
+                  <label class="form-label">Quality</label>
+                  <label class="form-checkbox-group">
+                    <input type="checkbox" id="require-tests" class="form-checkbox" checked>
+                    <span>Require tests in generated code</span>
+                  </label>
+                </div>
 
-          <button type="submit" class="btn btn-primary">Save Configuration</button>
-        </form>
+                <div class="form-group">
+                  <label class="form-label">Deployment</label>
+                  <label class="form-checkbox-group">
+                    <input type="checkbox" id="auto-merge" class="form-checkbox" checked>
+                    <span>Auto merge PR to main branch</span>
+                  </label>
+                </div>
+              </div>
+
+              <div style="margin-top: 24px;">
+                <button type="submit" class="btn btn-primary">Save Configuration</button>
+              </div>
+            </form>
+          </div>
+        </div>
       </div>
 
+      <!-- Models Tab -->
       <div id="models" class="tab-content">
-        <div class="actions">
-          <button id="btn-refresh-models" class="btn btn-secondary">Refresh Models</button>
-          <button id="btn-clear-cache" class="btn btn-secondary" style="background: var(--error);">Clear Cache & Refresh</button>
+        <div class="section-card">
+          <div class="section-header">
+            <div class="section-title">Available Models</div>
+            <div style="display: flex; gap: 8px;">
+              <button id="btn-refresh-models" class="btn btn-secondary btn-sm">Refresh</button>
+              <button id="btn-clear-cache" class="btn btn-danger btn-sm">Clear Cache</button>
+            </div>
+          </div>
+          <div class="section-body">
+            <div id="models-list" class="model-grid"></div>
+          </div>
         </div>
-        <div id="models-list" class="model-list"></div>
       </div>
     </main>
   </div>
 
-  <div id="modal" class="modal hidden">
-    <div class="modal-content">
-      <span class="close">&times;</span>
-      <div id="modal-body"></div>
+  <!-- Modal -->
+  <div id="modal" class="modal-overlay hidden">
+    <div class="modal-container">
+      <div class="modal-header">
+        <h2 class="modal-title" id="modal-title">Details</h2>
+        <button class="modal-close" onclick="closeModal()">&times;</button>
+      </div>
+      <div class="modal-body" id="modal-body"></div>
     </div>
   </div>
 
