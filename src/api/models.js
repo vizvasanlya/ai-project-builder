@@ -75,28 +75,48 @@ export async function clearModelsCache(env) {
 
 export async function testModel(env, modelId) {
   try {
+    var apiKey = env.OPENCODE_ZEN_API_KEY;
+    
+    if (!apiKey) {
+      return { success: false, error: 'OPENCODE_ZEN_API_KEY not configured' };
+    }
+
     var response = await fetch('https://opencode.ai/zen/v1/chat/completions', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': 'Bearer ' + env.OPENCODE_ZEN_API_KEY
+        'Authorization': 'Bearer ' + apiKey,
+        'HTTP-Referer': 'https://github.com/vizvasanlya/ai-project-builder',
+        'X-Title': 'AI Project Builder'
       },
       body: JSON.stringify({
         model: modelId,
-        messages: [{ role: 'user', content: 'Say hello in one word' }],
-        max_tokens: 50
+        messages: [{ role: 'user', content: 'hi' }],
+        max_tokens: 5
       })
     });
 
     var responseText = await response.text();
     
     if (!response.ok) {
+      var errorMsg = 'HTTP ' + response.status;
       try {
         var errorJson = JSON.parse(responseText);
-        return { success: false, error: errorJson.error?.message || responseText };
+        errorMsg = errorJson.error?.message || errorJson.message || responseText.substring(0, 200);
       } catch (e) {
-        return { success: false, error: 'HTTP ' + response.status + ': ' + responseText.substring(0, 200) };
+        errorMsg = responseText.substring(0, 200);
       }
+      
+      if (response.status === 429) {
+        return { 
+          success: false, 
+          error: 'Rate limited. Free APIs often block Cloudflare Worker IPs. Try: (1) Wait and retry, (2) Run locally with npm run dev, (3) Use a paid API key.',
+          status: 429,
+          isRateLimit: true
+        };
+      }
+      
+      return { success: false, error: errorMsg, status: response.status };
     }
 
     var data = JSON.parse(responseText);
@@ -105,17 +125,15 @@ export async function testModel(env, modelId) {
     if (data.choices && data.choices[0]) {
       content = data.choices[0].message?.content || '';
       if (!content && data.choices[0].message?.reasoning_content) {
-        content = '(reasoning only, no content)';
+        content = '(reasoning only)';
       }
     }
     
-    var cost = data.cost || 'unknown';
-    
     return { 
       success: true, 
-      response: content || '(empty response)',
+      response: content || '(empty)',
       model: data.model,
-      cost: cost,
+      cost: data.cost || '0',
       tokens: data.usage?.total_tokens || 0
     };
   } catch (error) {

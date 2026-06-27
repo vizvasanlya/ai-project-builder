@@ -48,6 +48,21 @@ export async function handleApi(request, env, ctx) {
     if (path === '/api/trigger') {
       return handleTrigger(request, env);
     }
+    if (path === '/api/debug/env') {
+      return Response.json({
+        hasApiKey: !!env.OPENCODE_ZEN_API_KEY,
+        keyLength: env.OPENCODE_ZEN_API_KEY ? env.OPENCODE_ZEN_API_KEY.length : 0,
+        keyPrefix: env.OPENCODE_ZEN_API_KEY ? env.OPENCODE_ZEN_API_KEY.substring(0, 8) + '...' : 'none'
+      }, { headers: corsHeaders });
+    }
+    if (path === '/api/debug/test-direct') {
+      try {
+        var resp = await fetch('https://httpbin.org/get');
+        return Response.json({ status: resp.status }, { headers: corsHeaders });
+      } catch(e) {
+        return Response.json({ error: e.message }, { headers: corsHeaders });
+      }
+    }
 
     return new Response('Not Found', { status: 404, headers: corsHeaders });
   } catch (error) {
