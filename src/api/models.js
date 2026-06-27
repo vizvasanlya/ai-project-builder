@@ -8,15 +8,27 @@ export async function getModels(env) {
     const response = await fetch('https://api.opencode.ai/v1/models');
     const data = await response.json();
     
-    const freeModels = data.models
-      .filter(m => m.pricing && m.pricing.prompt === '0')
-      .map(m => ({
-        id: m.id,
-        name: m.name,
-        provider: m.owned_by,
-        maxTokens: m.context_length,
-        isFree: true
-      }));
+    const allModels = data.data || data.models || [];
+    
+    const freeModels = allModels
+      .filter(function(m) {
+        var pricing = m.pricing || m.price || {};
+        var promptPrice = pricing.prompt || pricing.input || pricing.inputPrice || '';
+        return promptPrice === '0' || promptPrice === 0 || promptPrice === 'Free' || promptPrice === 'free';
+      })
+      .map(function(m) {
+        return {
+          id: m.id,
+          name: m.name || m.id,
+          provider: m.owned_by || m.provider || 'unknown',
+          maxTokens: m.context_length || m.maxTokens || 4096,
+          isFree: true
+        };
+      });
+
+    if (freeModels.length === 0) {
+      return getDefaultModels();
+    }
 
     await env.KV.put('models', JSON.stringify({
       models: freeModels,
@@ -25,6 +37,7 @@ export async function getModels(env) {
 
     return freeModels;
   } catch (error) {
+    console.error('Failed to fetch models:', error);
     return getDefaultModels();
   }
 }
@@ -35,7 +48,7 @@ export async function testModel(env, modelId) {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${env.OPENCODE_ZEN_API_KEY}`
+        'Authorization': 'Bearer ' + env.OPENCODE_ZEN_API_KEY
       },
       body: JSON.stringify({
         model: modelId,
@@ -45,11 +58,11 @@ export async function testModel(env, modelId) {
     });
 
     if (!response.ok) {
-      const error = await response.json();
+      var error = await response.json();
       return { success: false, error: error.error?.message || 'API error' };
     }
 
-    const data = await response.json();
+    var data = await response.json();
     return { success: true, response: data.choices[0].message.content };
   } catch (error) {
     return { success: false, error: error.message };
@@ -58,8 +71,10 @@ export async function testModel(env, modelId) {
 
 function getDefaultModels() {
   return [
-    { id: 'gpt-4', name: 'GPT-4', provider: 'openai', maxTokens: 8192, isFree: false },
-    { id: 'gpt-3.5-turbo', name: 'GPT-3.5 Turbo', provider: 'openai', maxTokens: 4096, isFree: false },
-    { id: 'claude-3-haiku', name: 'Claude 3 Haiku', provider: 'anthropic', maxTokens: 200000, isFree: false }
+    { id: 'big-pickle', name: 'Big Pickle', provider: 'opencode', maxTokens: 4096, isFree: true },
+    { id: 'deepseek-v4-flash-free', name: 'DeepSeek V4 Flash Free', provider: 'deepseek', maxTokens: 4096, isFree: true },
+    { id: 'mimo-v2.5-free', name: 'MiMo-V2.5 Free', provider: 'xiaomi', maxTokens: 4096, isFree: true },
+    { id: 'north-mini-code-free', name: 'North Mini Code Free', provider: 'opencode', maxTokens: 4096, isFree: true },
+    { id: 'nemotron-3-ultra-free', name: 'Nemotron 3 Ultra Free', provider: 'nvidia', maxTokens: 4096, isFree: true }
   ];
 }

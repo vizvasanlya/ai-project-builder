@@ -253,7 +253,7 @@ function isRetryableError(error) {
 async function getConfig(kv) {
   const stored = await kv.get('config', { type: 'json' });
   return {
-    selectedModel: 'gpt-4',
+    selectedModel: 'big-pickle',
     githubUsername: '',
     requireTests: true,
     autoMergeToMain: true,

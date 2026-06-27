@@ -1,5 +1,5 @@
 const DEFAULT_CONFIG = {
-  selectedModel: 'gpt-4',
+  selectedModel: 'big-pickle',
   githubUsername: '',
   autoRetry: true,
   maxRetries: 3,

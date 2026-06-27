@@ -120,7 +120,7 @@ async function getConfig(kv) {
     workingHoursStart: 9,
     workingHoursEnd: 17,
     maxProjectsPerDay: 3,
-    selectedModel: 'gpt-4',
+    selectedModel: 'big-pickle',
     ...stored
   };
 }
