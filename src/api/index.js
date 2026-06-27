@@ -21,6 +21,12 @@ export async function handleApi(request, env, ctx) {
     if (path === '/api/projects') {
       return handleProjects(request, env);
     }
+    if (path === '/api/projects/retry' && request.method === 'POST') {
+      return handleRetryProject(request, env);
+    }
+    if (path === '/api/projects/cleanup' && request.method === 'POST') {
+      return handleCleanupProjects(env);
+    }
     if (path.startsWith('/api/projects/') && path.endsWith('/files')) {
       return handleProjectFiles(request, env);
     }
@@ -47,12 +53,6 @@ export async function handleApi(request, env, ctx) {
     }
     if (path === '/api/trigger') {
       return handleTrigger(request, env);
-    }
-    if (path === '/api/projects/retry' && request.method === 'POST') {
-      return handleRetryProject(request, env);
-    }
-    if (path === '/api/projects/cleanup' && request.method === 'POST') {
-      return handleCleanupProjects(env);
     }
 
     return new Response('Not Found', { status: 404, headers: corsHeaders });
@@ -202,42 +202,50 @@ async function handleTrigger(request, env) {
 }
 
 async function handleRetryProject(request, env) {
-  if (request.method !== 'POST') {
-    return new Response('Method not allowed', { status: 405, headers: corsHeaders });
+  try {
+    if (request.method !== 'POST') {
+      return new Response('Method not allowed', { status: 405, headers: corsHeaders });
+    }
+
+    var body = await request.json();
+    var projectId = body.projectId;
+
+    if (!projectId) {
+      return Response.json({ error: 'projectId required' }, { status: 400, headers: corsHeaders });
+    }
+
+    var project = await env.DB.prepare('SELECT * FROM projects WHERE id = ?').bind(projectId).first();
+    if (!project) {
+      return Response.json({ error: 'Project not found' }, { status: 404, headers: corsHeaders });
+    }
+
+    await env.DB.prepare(`
+      UPDATE projects SET status = 'pending', error_message = NULL, retry_count = retry_count + 1, updated_at = CURRENT_TIMESTAMP WHERE id = ?
+    `).bind(projectId).run();
+
+    await env.DB.prepare(`
+      INSERT INTO build_history (project_id, action, status, details)
+      VALUES (?, 'retry', 'success', 'Manually retried')
+    `).bind(projectId).run();
+
+    await env.QUEUE.send({ type: 'build', projectId: projectId });
+
+    return Response.json({ success: true, projectId: projectId }, { headers: corsHeaders });
+  } catch (error) {
+    return Response.json({ error: error.message }, { status: 500, headers: corsHeaders });
   }
-
-  var body = await request.json();
-  var projectId = body.projectId;
-
-  if (!projectId) {
-    return Response.json({ error: 'projectId required' }, { status: 400, headers: corsHeaders });
-  }
-
-  var project = await env.DB.prepare('SELECT * FROM projects WHERE id = ?').bind(projectId).first();
-  if (!project) {
-    return Response.json({ error: 'Project not found' }, { status: 404, headers: corsHeaders });
-  }
-
-  await env.DB.prepare(`
-    UPDATE projects SET status = 'pending', error_message = NULL, retry_count = retry_count + 1, updated_at = CURRENT_TIMESTAMP WHERE id = ?
-  `).bind(projectId).run();
-
-  await env.DB.prepare(`
-    INSERT INTO build_history (project_id, action, status, details)
-    VALUES (?, 'retry', 'success', 'Manually retried')
-  `).bind(projectId).run();
-
-  await env.QUEUE.send({ type: 'build', projectId: projectId });
-
-  return Response.json({ success: true, projectId: projectId }, { headers: corsHeaders });
 }
 
 async function handleCleanupProjects(env) {
-  var stuck = await env.DB.prepare(`
-    UPDATE projects SET status = 'failed', error_message = 'Stuck - cleaned up', updated_at = CURRENT_TIMESTAMP
-    WHERE status IN ('pending', 'researching', 'generating', 'testing')
-    AND updated_at < datetime('now', '-2 hours')
-  `).run();
+  try {
+    await env.DB.prepare(`
+      UPDATE projects SET status = 'failed', error_message = 'Stuck - cleaned up', updated_at = CURRENT_TIMESTAMP
+      WHERE status IN ('pending', 'researching', 'generating', 'testing')
+      AND updated_at < datetime('now', '-2 hours')
+    `).run();
 
-  return Response.json({ cleaned: stuck.meta?.changes || 0 }, { headers: corsHeaders });
+    return Response.json({ cleaned: true }, { headers: corsHeaders });
+  } catch (error) {
+    return Response.json({ error: error.message }, { status: 500, headers: corsHeaders });
+  }
 }
