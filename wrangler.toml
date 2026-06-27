@@ -34,7 +34,7 @@ not_found_handling = "single-page-application"
 run_worker_first = ["/api/*"]
 
 [vars]
-GITHUB_USERNAME = "your-github-username"
+GITHUB_USERNAME = "vizvasanlya"
 
 # Cron: Runs every hour to check for work
 [triggers]

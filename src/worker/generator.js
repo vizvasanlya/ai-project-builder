@@ -5,7 +5,7 @@ export async function generateProject(env, project, research, config) {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'Authorization': `Bearer ${env.OPENCODE_ZEN_API_KEY}`
+      'Authorization': 'Bearer ' + env.OPENCODE_ZEN_API_KEY
     },
     body: JSON.stringify({
       model: config.selectedModel,
@@ -27,55 +27,24 @@ export async function generateProject(env, project, research, config) {
 }
 
 function buildPrompt(project, research) {
-  return `Generate a production-ready ${project.type} called "${project.name}".
-
-Description: ${project.description}
-
-Requirements:
-${research.requirements.map(r => `- ${r}`).join('\n')}
-
-Tech Stack: ${research.techStack.join(', ')}
-
-Return the code as a JSON object with this exact structure:
-{
-  "name": "project-name",
-  "description": "Brief description",
-  "files": [
-    {
-      "path": "src/index.js",
-      "content": "file content here"
-    },
-    {
-      "path": "package.json",
-      "content": "{...}"
-    },
-    {
-      "path": "README.md",
-      "content": "# Project Name..."
-    },
-    {
-      "path": "tests/index.test.js",
-      "content": "test code"
-    }
-  ]
-}
-
-Make sure:
-1. All code is syntactically valid
-2. package.json is valid JSON
-3. Tests use Node.js built-in test runner
-4. README includes installation and usage instructions
-5. Code follows best practices and has proper error handling`;
+  const reqs = research.requirements.map(function(r) { return '- ' + r; }).join('\n');
+  
+  return 'Generate a production-ready ' + project.type + ' called "' + project.name + '".\n\n' +
+    'Description: ' + project.description + '\n\n' +
+    'Requirements:\n' + reqs + '\n\n' +
+    'Tech Stack: ' + research.techStack.join(', ') + '\n\n' +
+    'Return the code as a JSON object with files array.\n' +
+    'Make sure all code is syntactically valid and includes tests.';
 }
 
 function parseGeneratedCode(content, project) {
   try {
-    const jsonMatch = content.match(/\{[\s\S]*\}/);
+    var jsonMatch = content.match(/\{[\s\S]*\}/);
     if (!jsonMatch) {
       throw new Error('No JSON found in response');
     }
     
-    const parsed = JSON.parse(jsonMatch[0]);
+    var parsed = JSON.parse(jsonMatch[0]);
     
     if (!parsed.files || !Array.isArray(parsed.files)) {
       throw new Error('Invalid response structure');
@@ -84,10 +53,9 @@ function parseGeneratedCode(content, project) {
     return {
       name: parsed.name || project.name,
       description: parsed.description || project.description,
-      files: parsed.files.map(f => ({
-        path: f.path,
-        content: f.content
-      }))
+      files: parsed.files.map(function(f) {
+        return { path: f.path, content: f.content };
+      })
     };
   } catch (error) {
     return getDefaultProject(project);
@@ -95,75 +63,54 @@ function parseGeneratedCode(content, project) {
 }
 
 function getDefaultProject(project) {
+  var indexContent = '/**\n' +
+    ' * ' + project.name + '\n' +
+    ' * ' + project.description + '\n' +
+    ' */\n\n' +
+    'export function main() {\n' +
+    '  console.log("Hello from ' + project.name + '");\n' +
+    '}\n\n' +
+    'export default main;';
+
+  var readmeContent = '# ' + project.name + '\n\n' +
+    project.description + '\n\n' +
+    '## Installation\n\n' +
+    '```bash\nnpm install ' + project.name + '\n```\n\n' +
+    '## Usage\n\n' +
+    '```javascript\nimport { main } from "' + project.name + '";\n\nmain();\n```\n\n' +
+    '## License\n\nMIT';
+
+  var testContent = "import { describe, it } from 'node:test';\n" +
+    "import assert from 'node:assert';\n" +
+    "import { main } from '../src/index.js';\n\n" +
+    "describe('" + project.name + "', () => {\n" +
+    "  it('should export main function', () => {\n" +
+    "    assert(typeof main === 'function');\n" +
+    "  });\n" +
+    "});";
+
+  var packageJson = JSON.stringify({
+    name: project.name,
+    version: '1.0.0',
+    description: project.description,
+    main: 'src/index.js',
+    type: 'module',
+    scripts: {
+      test: 'node --test tests/',
+      start: 'node src/index.js'
+    },
+    keywords: [project.type],
+    license: 'MIT'
+  }, null, 2);
+
   return {
     name: project.name,
     description: project.description,
     files: [
-      {
-        path: 'src/index.js',
-        content: `/**
- * ${project.name}
- * ${project.description}
- */
-
-export function main() {
-  console.log('Hello from ${project.name}');
-}
-
-export default main;`
-      },
-      {
-        path: 'package.json',
-        content: JSON.stringify({
-          name: project.name,
-          version: '1.0.0',
-          description: project.description,
-          main: 'src/index.js',
-          type: 'module',
-          scripts: {
-            test: 'node --test tests/',
-            start: 'node src/index.js'
-          },
-          keywords: [project.type],
-          license: 'MIT'
-        }, null, 2)
-      },
-      {
-        path: 'README.md',
-        content: `# ${project.name}
-
-${project.description}
-
-## Installation
-
-\`\`\`bash
-npm install ${project.name}
-\`\`\`
-
-## Usage
-
-\`\`\`javascript
-import { main } from '${project.name}';
-
-main();
-\`\`\`
-
-## License
-
-MIT`
-      },
-      {
-        path: 'tests/index.test.js',
-        content: `import { describe, it } from 'node:test';
-import assert from 'node:assert';
-import { main } from '../src/index.js';
-
-describe('${project.name}', () => {
-  it('should export main function', () => {
-    assert(typeof main === 'function');
-  });
-});`
-      }
-    ];
-  }
+      { path: 'src/index.js', content: indexContent },
+      { path: 'package.json', content: packageJson },
+      { path: 'README.md', content: readmeContent },
+      { path: 'tests/index.test.js', content: testContent }
+    ]
+  };
 }

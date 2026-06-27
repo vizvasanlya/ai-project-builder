@@ -1,5 +1,5 @@
 import { getProjects, getProject, createProject, updateProject } from './projects.js';
-import { getStats, getUsage } from './stats.js';
+import { getStats } from './stats.js';
 import { getConfig, updateConfig } from './config.js';
 import { getModels, testModel } from './models.js';
 
