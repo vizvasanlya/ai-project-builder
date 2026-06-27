@@ -31,7 +31,7 @@ dead_letter_queue = "project-build-queue-dlq"
 directory = "./dashboard"
 binding = "ASSETS"
 not_found_handling = "single-page-application"
-run_worker_first = ["/api/*"]
+run_worker_first = true
 
 [vars]
 GITHUB_USERNAME = "vizvasanlya"
