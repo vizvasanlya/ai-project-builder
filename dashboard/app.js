@@ -6,6 +6,7 @@ document.addEventListener('DOMContentLoaded', () => {
   loadConfig();
   loadModels();
   initEventListeners();
+  setInterval(loadActivity, 5000);
 });
 
 function initTabs() {
@@ -13,11 +14,12 @@ function initTabs() {
     tab.addEventListener('click', () => {
       document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
       document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
-      
+
       tab.classList.add('active');
       document.getElementById(tab.dataset.tab).classList.add('active');
-      
+
       if (tab.dataset.tab === 'projects') loadProjects();
+      if (tab.dataset.tab === 'overview') { loadOverview(); loadActivity(); }
     });
   });
 }
@@ -37,12 +39,12 @@ function initEventListeners() {
 async function loadOverview() {
   try {
     const stats = await fetchAPI('/api/stats');
-    
+
     document.getElementById('stat-total').textContent = stats.total;
     document.getElementById('stat-completed').textContent = stats.completed;
     document.getElementById('stat-pending').textContent = stats.pending;
     document.getElementById('stat-failed').textContent = stats.failed;
-    
+
     renderRecentProjects(stats.recentProjects);
     renderApiUsage(stats.apiUsage);
     renderErrors(stats.topErrors);
@@ -51,16 +53,59 @@ async function loadOverview() {
   }
 }
 
+async function loadActivity() {
+  const container = document.getElementById('activity-feed');
+  if (!container) return;
+
+  try {
+    const data = await fetchAPI('/api/activity');
+
+    if (data.activeProjects.length === 0 && data.recentActivity.length === 0) {
+      container.innerHTML = '<p style="color: var(--text-secondary);">No activity yet</p>';
+      return;
+    }
+
+    let html = '';
+
+    if (data.activeProjects.length > 0) {
+      html += '<h3 style="margin-bottom: 10px; color: var(--warning);">Currently Running</h3>';
+      html += data.activeProjects.map(p => `
+        <div class="project-card" style="border-left: 3px solid var(--warning);">
+          <div class="project-info">
+            <h3>${p.name}</h3>
+            <p>${p.type} — Status: <strong>${p.status}</strong></p>
+          </div>
+          <span class="project-status status-${p.status}">${p.status}</span>
+        </div>
+      `).join('');
+    }
+
+    if (data.recentActivity.length > 0) {
+      html += '<h3 style="margin: 15px 0 10px; color: var(--text-secondary);">Recent Activity</h3>';
+      html += data.recentActivity.map(a => `
+        <div style="padding: 8px 0; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between;">
+          <span>${a.project_name || 'Unknown'}: ${a.action}</span>
+          <span style="color: ${a.status === 'success' || a.status === 'completed' ? 'var(--success)' : a.status === 'failed' ? 'var(--error)' : 'var(--text-secondary)'};">${a.status}</span>
+        </div>
+      `).join('');
+    }
+
+    container.innerHTML = html;
+  } catch (error) {
+    container.innerHTML = '<p style="color: var(--error);">Failed to load activity</p>';
+  }
+}
+
 function renderRecentProjects(projects) {
   const container = document.getElementById('recent-projects');
-  
+
   if (!projects || projects.length === 0) {
-    container.innerHTML = '<div class="empty-state"><h3>No projects yet</h3><p>Create your first project to get started</p></div>';
+    container.innerHTML = '<div class="empty-state"><h3>No projects yet</h3><p>Click "Trigger Build" to create your first project</p></div>';
     return;
   }
-  
+
   container.innerHTML = projects.map(p => `
-    <div class="project-card">
+    <div class="project-card" onclick="showProjectDetails('${p.id}')">
       <div class="project-info">
         <h3>${p.name}</h3>
         <p>${p.description || 'No description'}</p>
@@ -72,12 +117,12 @@ function renderRecentProjects(projects) {
 
 function renderApiUsage(usage) {
   const container = document.getElementById('api-usage');
-  
+
   if (!usage || usage.length === 0) {
     container.innerHTML = '<p>No API usage recorded yet</p>';
     return;
   }
-  
+
   container.innerHTML = usage.map(u => `
     <div style="display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid var(--border);">
       <span>${u.model}</span>
@@ -88,12 +133,12 @@ function renderApiUsage(usage) {
 
 function renderErrors(errors) {
   const container = document.getElementById('error-list');
-  
+
   if (!errors || errors.length === 0) {
     container.innerHTML = '<p>No errors recorded</p>';
     return;
   }
-  
+
   container.innerHTML = errors.map(e => `
     <div class="error-item">
       <p>${e.error_message}</p>
@@ -105,21 +150,21 @@ function renderErrors(errors) {
 async function loadProjects() {
   const container = document.getElementById('projects-list');
   container.innerHTML = '<div class="loading">Loading projects...</div>';
-  
+
   try {
     const projects = await fetchAPI('/api/projects');
-    
+
     if (projects.length === 0) {
-      container.innerHTML = '<div class="empty-state"><h3>No projects</h3><p>Create a new project to get started</p></div>';
+      container.innerHTML = '<div class="empty-state"><h3>No projects</h3><p>Click "Trigger Build" to create your first project</p></div>';
       return;
     }
-    
+
     container.innerHTML = projects.map(p => `
       <div class="project-card" onclick="showProjectDetails('${p.id}')">
         <div class="project-info">
           <h3>${p.name}</h3>
           <p>${p.description || 'No description'}</p>
-          ${p.repo_url ? `<a href="${p.repo_url}" target="_blank" style="color: var(--accent); font-size: 0.85rem;">View on GitHub →</a>` : ''}
+          ${p.repo_url ? '<a href="' + p.repo_url + '" target="_blank" style="color: var(--accent); font-size: 0.85rem;">View on GitHub</a>' : ''}
         </div>
         <span class="project-status status-${p.status}">${p.status}</span>
       </div>
@@ -132,7 +177,7 @@ async function loadProjects() {
 async function loadConfig() {
   try {
     const config = await fetchAPI('/api/config');
-    
+
     document.getElementById('github-username').value = config.githubUsername || '';
     document.getElementById('schedule-enabled').checked = config.scheduleEnabled;
     document.getElementById('max-projects').value = config.maxProjectsPerDay;
@@ -145,7 +190,7 @@ async function loadConfig() {
 
 async function saveConfig(e) {
   e.preventDefault();
-  
+
   const config = {
     githubUsername: document.getElementById('github-username').value,
     scheduleEnabled: document.getElementById('schedule-enabled').checked,
@@ -153,7 +198,7 @@ async function saveConfig(e) {
     requireTests: document.getElementById('require-tests').checked,
     autoMergeToMain: document.getElementById('auto-merge').checked
   };
-  
+
   try {
     await fetchAPI('/api/config', { method: 'PUT', body: config });
     alert('Configuration saved!');
@@ -211,15 +256,15 @@ async function clearModelsCache() {
 
 async function testModel(modelId) {
   try {
-    const result = await fetchAPI('/api/models/test', { 
-      method: 'POST', 
-      body: { model: modelId } 
+    const result = await fetchAPI('/api/models/test', {
+      method: 'POST',
+      body: { model: modelId }
     });
-    
+
     if (result.success) {
-      alert(`Model test successful: ${result.response}`);
+      alert('Model test successful: ' + result.response);
     } else {
-      alert(`Model test failed: ${result.error}`);
+      alert('Model test failed: ' + result.error);
     }
   } catch (error) {
     alert('Failed to test model');
@@ -229,7 +274,7 @@ async function testModel(modelId) {
 function showNewProjectModal() {
   const modal = document.getElementById('modal');
   const body = document.getElementById('modal-body');
-  
+
   body.innerHTML = `
     <h2>Create New Project</h2>
     <form id="new-project-form">
@@ -254,16 +299,16 @@ function showNewProjectModal() {
       <button type="submit" class="btn btn-primary">Create Project</button>
     </form>
   `;
-  
+
   document.getElementById('new-project-form').addEventListener('submit', async (e) => {
     e.preventDefault();
-    
+
     const project = {
       name: document.getElementById('project-name').value,
       type: document.getElementById('project-type').value,
       description: document.getElementById('project-desc').value
     };
-    
+
     try {
       await fetchAPI('/api/projects', { method: 'POST', body: project });
       modal.classList.add('hidden');
@@ -273,62 +318,103 @@ function showNewProjectModal() {
       alert('Failed to create project');
     }
   });
-  
+
   modal.classList.remove('hidden');
 }
 
 async function triggerBuild() {
+  const btn = document.getElementById('btn-trigger-build');
+  btn.disabled = true;
+  btn.textContent = 'Starting...';
+
   try {
-    await fetchAPI('/api/trigger', { method: 'POST' });
-    alert('Build triggered!');
+    const result = await fetchAPI('/api/trigger', { method: 'POST' });
+    alert('Build started! Project: ' + result.project.name + '\nID: ' + result.projectId);
+    loadOverview();
+    loadActivity();
   } catch (error) {
-    alert('Failed to trigger build');
+    alert('Failed to trigger build: ' + error.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Trigger Build';
   }
 }
 
 async function showProjectDetails(id) {
   try {
-    const project = await fetchAPI(`/api/projects/${id}`);
+    const project = await fetchAPI('/api/projects/' + id);
+    const files = await fetchAPI('/api/projects/' + id + '/files');
     const modal = document.getElementById('modal');
     const body = document.getElementById('modal-body');
-    
+
+    let filesHtml = '';
+    if (files && files.length > 0) {
+      filesHtml = '<h3 style="margin-top: 20px;">Generated Files</h3>';
+      filesHtml += '<div style="max-height: 300px; overflow-y: auto; background: var(--bg-primary); padding: 10px; border-radius: 5px; margin-top: 10px;">';
+      filesHtml += files.map(f => `
+        <div style="padding: 5px 0; border-bottom: 1px solid var(--border); cursor: pointer;" onclick="toggleFileContent(this)">
+          <strong>' + f.file_path + '</strong>
+          <pre style="display: none; margin-top: 5px; padding: 10px; background: var(--bg-card); border-radius: 3px; overflow-x: auto; font-size: 0.85rem;">' + escapeHtml(f.content || '') + '</pre>
+        </div>
+      `).join('');
+      filesHtml += '</div>';
+    }
+
+    let historyHtml = '';
+    if (project.history && project.history.length > 0) {
+      historyHtml = '<h3 style="margin-top: 20px;">Build History</h3>';
+      historyHtml += '<div style="max-height: 200px; overflow-y: auto;">';
+      historyHtml += project.history.map(h => `
+        <div style="padding: 8px 0; border-bottom: 1px solid var(--border);">
+          <span style="color: ' + (h.status === 'completed' || h.status === 'success' ? 'var(--success)' : h.status === 'failed' ? 'var(--error)' : 'var(--warning)') + ';">
+            ' + h.action + '
+          </span>
+          ' + (h.details ? ' - ' + h.details : '') + '
+        </div>
+      `).join('');
+      historyHtml += '</div>';
+    }
+
     body.innerHTML = `
-      <h2>${project.name}</h2>
-      <p><strong>Status:</strong> <span class="project-status status-${project.status}">${project.status}</span></p>
-      <p><strong>Type:</strong> ${project.type}</p>
-      <p><strong>Description:</strong> ${project.description || 'N/A'}</p>
-      ${project.repo_url ? `<p><strong>Repository:</strong> <a href="${project.repo_url}" target="_blank">${project.repo_url}</a></p>` : ''}
-      ${project.error_message ? `<p style="color: var(--error);"><strong>Error:</strong> ${project.error_message}</p>` : ''}
-      
-      <h3 style="margin-top: 20px;">Build History</h3>
-      <div style="max-height: 200px; overflow-y: auto;">
-        ${(project.history || []).map(h => `
-          <div style="padding: 10px 0; border-bottom: 1px solid var(--border);">
-            <span style="color: ${h.status === 'completed' || h.status === 'success' ? 'var(--success)' : h.status === 'failed' ? 'var(--error)' : 'var(--warning)'};">
-              ${h.action}
-            </span>
-            ${h.details ? ` - ${h.details}` : ''}
-          </div>
-        `).join('')}
-      </div>
-      
-      <div style="margin-top: 20px; display: flex; gap: 10px;">
-        <button class="btn btn-secondary" onclick="deleteProject('${project.id}')">Delete</button>
-        <button class="btn btn-primary" onclick="document.getElementById('modal').classList.add('hidden')">Close</button>
-      </div>
+      <h2>' + project.name + '</h2>
+      <p><strong>Status:</strong> <span class="project-status status-' + project.status + '">' + project.status + '</span></p>
+      <p><strong>Type:</strong> ' + project.type + '</p>
+      <p><strong>Description:</strong> ' + (project.description || 'N/A') + '</p>
+      <p><strong>Created:</strong> ' + project.created_at + '</p>
+      ' + (project.repo_url ? '<p><strong>Repository:</strong> <a href="' + project.repo_url + '" target="_blank">' + project.repo_url + '</a></p>' : '')
+      + (project.error_message ? '<p style="color: var(--error);"><strong>Error:</strong> ' + project.error_message + '</p>' : '')
+      + filesHtml
+      + historyHtml
+      + '<div style="margin-top: 20px; display: flex; gap: 10px;">'
+      + '<button class="btn btn-secondary" onclick="deleteProject(\'' + project.id + '\')">Delete</button>'
+      + '<button class="btn btn-primary" onclick="document.getElementById(\'modal\').classList.add(\'hidden\')">Close</button>'
+      + '</div>
     `;
-    
+
     modal.classList.remove('hidden');
   } catch (error) {
-    alert('Failed to load project details');
+    alert('Failed to load project details: ' + error.message);
   }
+}
+
+function toggleFileContent(el) {
+  const pre = el.querySelector('pre');
+  if (pre) {
+    pre.style.display = pre.style.display === 'none' ? 'block' : 'none';
+  }
+}
+
+function escapeHtml(text) {
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
 }
 
 async function deleteProject(id) {
   if (!confirm('Are you sure you want to delete this project?')) return;
-  
+
   try {
-    await fetchAPI(`/api/projects/${id}`, { method: 'DELETE' });
+    await fetchAPI('/api/projects/' + id, { method: 'DELETE' });
     document.getElementById('modal').classList.add('hidden');
     loadProjects();
     loadOverview();
@@ -346,11 +432,11 @@ async function fetchAPI(url, options = {}) {
     },
     body: options.body ? JSON.stringify(options.body) : undefined
   });
-  
+
   if (!response.ok) {
-    throw new Error(`API error: ${response.statusText}`);
+    throw new Error('API error: ' + response.statusText);
   }
-  
+
   if (response.status === 204) return null;
   return response.json();
 }

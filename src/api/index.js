@@ -21,11 +21,17 @@ export async function handleApi(request, env, ctx) {
     if (path === '/api/projects') {
       return handleProjects(request, env);
     }
+    if (path.startsWith('/api/projects/') && path.endsWith('/files')) {
+      return handleProjectFiles(request, env);
+    }
     if (path.startsWith('/api/projects/')) {
       return handleProject(request, env);
     }
     if (path === '/api/stats') {
       return handleStats(env);
+    }
+    if (path === '/api/activity') {
+      return handleActivity(env);
     }
     if (path === '/api/config') {
       return handleConfig(request, env);
@@ -67,7 +73,7 @@ async function handleProjects(request, env) {
 
 async function handleProject(request, env) {
   const id = request.url.split('/').pop();
-  
+
   if (request.method === 'GET') {
     const project = await getProject(env.DB, id);
     return Response.json(project, { headers: corsHeaders });
@@ -78,14 +84,49 @@ async function handleProject(request, env) {
     return Response.json(project, { headers: corsHeaders });
   }
   if (request.method === 'DELETE') {
+    await env.DB.prepare('DELETE FROM project_files WHERE project_id = ?').bind(id).run();
+    await env.DB.prepare('DELETE FROM build_history WHERE project_id = ?').bind(id).run();
     await env.DB.prepare('DELETE FROM projects WHERE id = ?').bind(id).run();
     return new Response(null, { status: 204, headers: corsHeaders });
   }
 }
 
+async function handleProjectFiles(request, env) {
+  const parts = request.url.split('/');
+  const projectId = parts[parts.length - 2];
+
+  const files = await env.DB.prepare(
+    'SELECT * FROM project_files WHERE project_id = ? ORDER BY file_path'
+  ).bind(projectId).all();
+
+  return Response.json(files.results || [], { headers: corsHeaders });
+}
+
 async function handleStats(env) {
   const stats = await getStats(env.DB);
   return Response.json(stats, { headers: corsHeaders });
+}
+
+async function handleActivity(env) {
+  const running = await env.DB.prepare(`
+    SELECT id, name, type, status, updated_at
+    FROM projects
+    WHERE status IN ('pending', 'researching', 'generating', 'testing')
+    ORDER BY updated_at DESC
+  `).all();
+
+  const recentHistory = await env.DB.prepare(`
+    SELECT h.*, p.name as project_name
+    FROM build_history h
+    LEFT JOIN projects p ON h.project_id = p.id
+    ORDER BY h.created_at DESC
+    LIMIT 10
+  `).all();
+
+  return Response.json({
+    activeProjects: running.results || [],
+    recentActivity: recentHistory.results || []
+  }, { headers: corsHeaders });
 }
 
 async function handleConfig(request, env) {
@@ -120,6 +161,36 @@ async function handleTrigger(request, env) {
   if (request.method !== 'POST') {
     return new Response('Method not allowed', { status: 405, headers: corsHeaders });
   }
-  await env.QUEUE.send({ type: 'build', projectId: 'manual' });
-  return Response.json({ triggered: true }, { headers: corsHeaders });
+
+  const topics = [
+    { type: 'cli', name: 'file-organizer', desc: 'CLI file organization tool' },
+    { type: 'library', name: 'date-utils', desc: 'Date manipulation utilities' },
+    { type: 'tool', name: 'json-transformer', desc: 'JSON data transformer' },
+    { type: 'api', name: 'rest-starter', desc: 'REST API boilerplate' },
+    { type: 'webapp', name: 'todo-app', desc: 'Full-stack todo application' },
+    { type: 'cli', name: 'code-formatter', desc: 'Code formatting CLI' },
+    { type: 'library', name: 'validation-lib', desc: 'Data validation library' },
+    { type: 'tool', name: 'env-manager', desc: 'Environment variable manager' }
+  ];
+
+  const topic = topics[Math.floor(Math.random() * topics.length)];
+  const id = 'proj_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+
+  await env.DB.prepare(`
+    INSERT INTO projects (id, name, type, status, description)
+    VALUES (?, ?, ?, 'pending', ?)
+  `).bind(id, topic.name, topic.type, topic.desc).run();
+
+  await env.DB.prepare(`
+    INSERT INTO build_history (project_id, action, status, details)
+    VALUES (?, 'created', 'success', ?)
+  `).bind(id, 'Manual trigger: ' + topic.desc).run();
+
+  await env.QUEUE.send({ type: 'build', projectId: id });
+
+  return Response.json({
+    triggered: true,
+    projectId: id,
+    project: topic
+  }, { headers: corsHeaders });
 }
