@@ -1,7 +1,7 @@
 export async function generateProject(env, project, research, config) {
   const prompt = buildPrompt(project, research);
   
-  const response = await fetch('https://api.opencode.ai/v1/chat/completions', {
+  const response = await fetch('https://opencode.ai/zen/v1/chat/completions', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',

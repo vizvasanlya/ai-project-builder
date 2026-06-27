@@ -1,50 +1,61 @@
 export async function getModels(env) {
-  const cached = await env.KV.get('models', { type: 'json' });
-  if (cached && Date.now() - cached.fetchedAt < 3600000) {
+  var cached = await env.KV.get('models', { type: 'json' });
+  
+  if (cached && Date.now() - cached.fetchedAt < 86400000) {
     return cached.models;
   }
 
   try {
-    const response = await fetch('https://api.opencode.ai/v1/models');
-    const data = await response.json();
+    var response = await fetch('https://opencode.ai/zen/v1/models');
     
-    const allModels = data.data || data.models || [];
+    if (!response.ok) {
+      throw new Error('Failed to fetch models');
+    }
     
-    const freeModels = allModels
-      .filter(function(m) {
-        var pricing = m.pricing || m.price || {};
-        var promptPrice = pricing.prompt || pricing.input || pricing.inputPrice || '';
-        return promptPrice === '0' || promptPrice === 0 || promptPrice === 'Free' || promptPrice === 'free';
-      })
-      .map(function(m) {
-        return {
+    var data = await response.json();
+    var allModels = data.data || data.models || [];
+    
+    var freeModels = [];
+    
+    for (var i = 0; i < allModels.length; i++) {
+      var m = allModels[i];
+      var pricing = m.pricing || {};
+      var inputPrice = pricing.prompt || pricing.input || '';
+      
+      if (inputPrice === 'Free' || inputPrice === 'free' || inputPrice === '0' || inputPrice === 0) {
+        freeModels.push({
           id: m.id,
           name: m.name || m.id,
-          provider: m.owned_by || m.provider || 'unknown',
+          provider: m.owned_by || m.provider || 'opencode',
           maxTokens: m.context_length || m.maxTokens || 4096,
-          isFree: true
-        };
-      });
-
-    if (freeModels.length === 0) {
-      return getDefaultModels();
+          isFree: true,
+          endpoint: m.endpoint || 'https://opencode.ai/zen/v1/chat/completions'
+        });
+      }
     }
 
     await env.KV.put('models', JSON.stringify({
       models: freeModels,
-      fetchedAt: Date.now()
+      fetchedAt: Date.now(),
+      source: 'opencode-zen'
     }));
 
     return freeModels;
   } catch (error) {
-    console.error('Failed to fetch models:', error);
-    return getDefaultModels();
+    console.error('Failed to fetch models from OpenCode Zen:', error);
+    
+    var staleCached = await env.KV.get('models', { type: 'json' });
+    if (staleCached && staleCached.models) {
+      return staleCached.models;
+    }
+    
+    return [];
   }
 }
 
 export async function testModel(env, modelId) {
   try {
-    const response = await fetch('https://api.opencode.ai/v1/chat/completions', {
+    var response = await fetch('https://opencode.ai/zen/v1/chat/completions', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -67,14 +78,4 @@ export async function testModel(env, modelId) {
   } catch (error) {
     return { success: false, error: error.message };
   }
-}
-
-function getDefaultModels() {
-  return [
-    { id: 'big-pickle', name: 'Big Pickle', provider: 'opencode', maxTokens: 4096, isFree: true },
-    { id: 'deepseek-v4-flash-free', name: 'DeepSeek V4 Flash Free', provider: 'deepseek', maxTokens: 4096, isFree: true },
-    { id: 'mimo-v2.5-free', name: 'MiMo-V2.5 Free', provider: 'xiaomi', maxTokens: 4096, isFree: true },
-    { id: 'north-mini-code-free', name: 'North Mini Code Free', provider: 'opencode', maxTokens: 4096, isFree: true },
-    { id: 'nemotron-3-ultra-free', name: 'Nemotron 3 Ultra Free', provider: 'nvidia', maxTokens: 4096, isFree: true }
-  ];
 }
