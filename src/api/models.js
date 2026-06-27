@@ -1,8 +1,8 @@
 export async function getModels(env) {
   var cached = await env.KV.get('models', { type: 'json' });
   
-  if (cached && Date.now() - cached.fetchedAt < 86400000) {
-    return { models: cached.models, error: null };
+  if (cached && cached.models && cached.models.length > 0 && Date.now() - cached.fetchedAt < 86400000) {
+    return { models: cached.models, error: null, source: 'cache' };
   }
 
   try {
@@ -13,29 +13,19 @@ export async function getModels(env) {
     }
     
     var data = await response.json();
-    var allModels = data.data || data.models || [];
-    
-    var freeModelIds = [
-      'big-pickle',
-      'deepseek-v4-flash-free',
-      'mimo-v2.5-free',
-      'north-mini-code-free',
-      'nemotron-3-ultra-free',
-      'qwen3.6-plus-free',
-      'minimax-m3-free'
-    ];
+    var allModels = data.data || [];
     
     var freeModels = [];
     
     for (var i = 0; i < allModels.length; i++) {
       var m = allModels[i];
-      var isFree = freeModelIds.indexOf(m.id) !== -1 || 
-                   m.id.indexOf('-free') !== -1;
+      var id = m.id || '';
+      var isFree = id.indexOf('-free') !== -1 || id === 'big-pickle';
       
       if (isFree) {
         freeModels.push({
-          id: m.id,
-          name: formatModelName(m.id),
+          id: id,
+          name: formatModelName(id),
           provider: m.owned_by || 'opencode',
           isFree: true
         });
@@ -48,15 +38,15 @@ export async function getModels(env) {
       totalModels: allModels.length
     }));
 
-    return { models: freeModels, error: null };
+    return { models: freeModels, error: null, source: 'api' };
   } catch (error) {
     console.error('Failed to fetch models:', error.message);
     
-    if (cached && cached.models) {
-      return { models: cached.models, error: null };
+    if (cached && cached.models && cached.models.length > 0) {
+      return { models: cached.models, error: null, source: 'stale-cache' };
     }
     
-    return { models: [], error: error.message };
+    return { models: [], error: error.message, source: 'error' };
   }
 }
 
@@ -76,6 +66,11 @@ function formatModelName(id) {
   return id.split('-').map(function(w) {
     return w.charAt(0).toUpperCase() + w.slice(1);
   }).join(' ');
+}
+
+export async function clearModelsCache(env) {
+  await env.KV.delete('models');
+  return { success: true };
 }
 
 export async function testModel(env, modelId) {

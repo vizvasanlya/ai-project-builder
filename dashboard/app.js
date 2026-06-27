@@ -26,8 +26,9 @@ function initEventListeners() {
   document.getElementById('btn-new-project').addEventListener('click', showNewProjectModal);
   document.getElementById('btn-trigger-build').addEventListener('click', triggerBuild);
   document.getElementById('btn-refresh-models').addEventListener('click', loadModels);
+  document.getElementById('btn-clear-cache').addEventListener('click', clearModelsCache);
   document.getElementById('config-form').addEventListener('submit', saveConfig);
-  
+
   document.querySelector('.close').addEventListener('click', () => {
     document.getElementById('modal').classList.add('hidden');
   });
@@ -169,18 +170,20 @@ async function loadModels() {
     const result = await fetchAPI('/api/models');
     const models = result.models || [];
     const error = result.error;
+    const source = result.source || 'unknown';
 
     if (error) {
-      container.innerHTML = '<div class="error-item"><p>Failed to load models: ' + error + '</p><span>Check OPENCODE_ZEN_API_KEY secret</span></div>';
+      container.innerHTML = '<div class="error-item"><p>Failed to load models: ' + error + '</p><span>Source: ' + source + '</span></div>';
       return;
     }
 
     if (models.length === 0) {
-      container.innerHTML = '<div class="empty-state"><h3>No free models found</h3><p>API may be unavailable</p></div>';
+      container.innerHTML = '<div class="empty-state"><h3>No free models found</h3><p>Source: ' + source + ' | Try "Clear Cache & Refresh"</p></div>';
       return;
     }
 
-    container.innerHTML = models.map(m => `
+    container.innerHTML = '<p style="color: var(--text-secondary); margin-bottom: 15px;">Source: ' + source + ' | ' + models.length + ' free models found</p>' +
+      models.map(m => `
       <div class="model-card">
         <h3>${m.name}</h3>
         <p>Provider: ${m.provider}</p>
@@ -191,6 +194,18 @@ async function loadModels() {
     `).join('');
   } catch (error) {
     container.innerHTML = '<div class="error-item"><p>Network error: ' + error.message + '</p></div>';
+  }
+}
+
+async function clearModelsCache() {
+  const container = document.getElementById('models-list');
+  container.innerHTML = '<div class="loading">Clearing cache and refreshing...</div>';
+
+  try {
+    await fetchAPI('/api/models/clear-cache', { method: 'POST' });
+    await loadModels();
+  } catch (error) {
+    container.innerHTML = '<div class="error-item"><p>Failed to clear cache: ' + error.message + '</p></div>';
   }
 }
 

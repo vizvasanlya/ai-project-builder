@@ -1,7 +1,7 @@
 import { getProjects, getProject, createProject, updateProject } from './projects.js';
 import { getStats } from './stats.js';
 import { getConfig, updateConfig } from './config.js';
-import { getModels, testModel } from './models.js';
+import { getModels, testModel, clearModelsCache } from './models.js';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -32,6 +32,9 @@ export async function handleApi(request, env, ctx) {
     }
     if (path === '/api/models') {
       return handleModels(env);
+    }
+    if (path === '/api/models/clear-cache' && request.method === 'POST') {
+      return handleClearModelsCache(env);
     }
     if (path === '/api/models/test') {
       return handleModelTest(request, env);
@@ -98,8 +101,13 @@ async function handleConfig(request, env) {
 }
 
 async function handleModels(env) {
-  const models = await getModels(env);
-  return Response.json(models, { headers: corsHeaders });
+  const result = await getModels(env);
+  return Response.json(result, { headers: corsHeaders });
+}
+
+async function handleClearModelsCache(env) {
+  await clearModelsCache(env);
+  return Response.json({ success: true }, { headers: corsHeaders });
 }
 
 async function handleModelTest(request, env) {
