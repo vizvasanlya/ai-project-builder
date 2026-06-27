@@ -163,22 +163,34 @@ async function saveConfig(e) {
 
 async function loadModels() {
   const container = document.getElementById('models-list');
-  container.innerHTML = '<div class="loading">Loading models...</div>';
-  
+  container.innerHTML = '<div class="loading">Loading models from OpenCode Zen...</div>';
+
   try {
-    const models = await fetchAPI('/api/models');
-    
+    const result = await fetchAPI('/api/models');
+    const models = result.models || [];
+    const error = result.error;
+
+    if (error) {
+      container.innerHTML = '<div class="error-item"><p>Failed to load models: ' + error + '</p><span>Check OPENCODE_ZEN_API_KEY secret</span></div>';
+      return;
+    }
+
+    if (models.length === 0) {
+      container.innerHTML = '<div class="empty-state"><h3>No free models found</h3><p>API may be unavailable</p></div>';
+      return;
+    }
+
     container.innerHTML = models.map(m => `
       <div class="model-card">
         <h3>${m.name}</h3>
         <p>Provider: ${m.provider}</p>
-        <p>Max tokens: ${m.maxTokens?.toLocaleString() || 'Unknown'}</p>
+        <p>ID: <code>${m.id}</code></p>
         ${m.isFree ? '<span class="badge badge-free">Free</span>' : ''}
         <button class="btn btn-secondary" style="margin-top: 10px;" onclick="testModel('${m.id}')">Test</button>
       </div>
     `).join('');
   } catch (error) {
-    container.innerHTML = '<div class="error-state">Failed to load models</div>';
+    container.innerHTML = '<div class="error-item"><p>Network error: ' + error.message + '</p></div>';
   }
 }
 

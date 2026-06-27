@@ -16,8 +16,14 @@ export async function generateProject(env, project, research, config) {
   });
 
   if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.error?.message || 'API request failed');
+    var errorText = await response.text();
+    try {
+      var errorJson = JSON.parse(errorText);
+      throw new Error(errorJson.error?.message || errorText);
+    } catch (e) {
+      if (e.message.includes('API')) throw e;
+      throw new Error('API error: ' + errorText.substring(0, 200));
+    }
   }
 
   const data = await response.json();
